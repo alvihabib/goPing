@@ -39,12 +39,21 @@ func main() {
 		"c",
 		-1,
 		"Finite number of times to ping, -1 being infinite")
+	timeToLive := flag.Int(
+		"ttl",
+		64,
+		"Time-to-live before package expires")
 	flag.Parse()
 
 	if *pingCount < -1 {
 		log.Printf("Times to ping must be positive int, or -1 for infinite. Defaulting to infinite...")
 		*pingCount = -1
 	}
+	if *timeToLive < 0 {
+		log.Printf("Invalid TTL. Defaulting to 64...")
+		*timeToLive = 64
+	}
+	ttl = *timeToLive
 
 	if wantIPv6 = *ipVersion == 6; wantIPv6 {
 		log.Printf("Using IPv6...\n")
@@ -98,6 +107,7 @@ const (
 
 var (
 	wantIPv6 bool
+	ttl      int
 )
 
 type statistic struct {
@@ -141,6 +151,12 @@ func (stats *statistic) ping(address string) (*net.IPAddr, error) {
 	}
 	defer listenPacket.Close()
 
+	if wantIPv6 {
+		listenPacket.IPv6PacketConn().SetHopLimit(ttl)
+	} else {
+		listenPacket.IPv4PacketConn().SetTTL(ttl)
+	}
+
 	ipAddress, err := net.ResolveIPAddr(resolveNetwork, address)
 	if err != nil {
 		return nil, err
@@ -165,7 +181,7 @@ func (stats *statistic) ping(address string) (*net.IPAddr, error) {
 		return ipAddress, err
 	}
 	replyEncoded := make([]byte, 1000)
-	err = listenPacket.SetReadDeadline(time.Now().Add(3 * time.Second))
+	err = listenPacket.SetReadDeadline(time.Now().Add(10 * time.Second))
 	if err != nil {
 		return ipAddress, err
 	}
@@ -178,11 +194,14 @@ func (stats *statistic) ping(address string) (*net.IPAddr, error) {
 		return ipAddress, err
 	}
 	switch reply.Type {
+	// Let IPv6 discovery not count as error (https://www.sharetechnote.com/html/IP_Network_IPv6.html)
+	case ipv6.ICMPTypeNeighborSolicitation, ipv6.ICMPTypeNeighborAdvertisement:
+		fallthrough
 	case ipv4.ICMPTypeEchoReply, ipv6.ICMPTypeEchoReply:
 		stats.received++
 		return ipAddress, nil
 	default:
-		return ipAddress, fmt.Errorf("reply type is %s", reply.Type)
+		return ipAddress, fmt.Errorf("Received %s instead of echo reply", reply.Type)
 
 	}
 }
