@@ -1,7 +1,7 @@
 // Program: goPing
 //
 // Description: A simple CLI ping application to send echo requests and receive
-// echo replies in an infinite loop.
+// echo replies in an infinite loop, unless specified.
 //
 // Attributes:
 // 1) Written in the Go programming language
@@ -9,6 +9,8 @@
 // 3) Sends ICMP "echo requests" in an infinite loop
 // 4) Reports loss and RTT times for each message
 // 5) Handles both IPv4 and IPv6 (with flag)
+// 6) X
+// 7) Supports finite number of pings (with flag)
 
 package main
 
@@ -33,20 +35,27 @@ func main() {
 		"ipv",
 		4,
 		"4 or 6, corresponding to which IP version to use")
+	pingCount := flag.Int(
+		"c",
+		-1,
+		"Finite number of times to ping, -1 being infinite")
 	flag.Parse()
 
-	wantIPv6 = *ipVersion == 6
+	if *pingCount < -1 {
+		log.Printf("Times to ping must be positive int, or -1 for infinite. Defaulting to infinite...")
+		*pingCount = -1
+	}
 
-	if wantIPv6 {
-		log.Printf("Using IPv6\n")
+	if wantIPv6 = *ipVersion == 6; wantIPv6 {
+		log.Printf("Using IPv6...\n")
 	} else {
-		log.Printf("Using IPv4\n")
+		log.Printf("Using IPv4...\n")
 	}
 
 	var address string
 
 	if flag.NArg() == 0 {
-		log.Printf("No IP/hostname specified. Defaulting to cloudflare.com\n")
+		log.Printf("No IP/hostname specified. Defaulting to cloudflare.com...\n")
 		address = "cloudflare.com"
 	} else if flag.NArg() > 1 {
 		log.Printf("Please enter only one IP/hostname as a positional argument\n")
@@ -56,7 +65,7 @@ func main() {
 	}
 
 	stats := new(statistic)
-	for {
+	for i := 0; i != *pingCount; i++ {
 		logIPAddress, logErr := stats.ping(address)
 		if logErr != nil {
 			stats.count++
@@ -108,8 +117,7 @@ func (stats *statistic) ping(address string) (*net.IPAddr, error) {
 		listenAddress  string
 		resolveNetwork string
 		messageType    icmp.Type
-		//replyType      icmp.Type
-		protocolICMP int
+		protocolICMP   int
 	)
 
 	if wantIPv6 {
