@@ -1,49 +1,60 @@
-# Cloudflare Internship Application: Systems
+# goPing -- A Cloudflare Internship Application: Systems
+#### Author: Alvi Habib
 
-## What is it?
+## Features:
 
-Please write a small Ping CLI application for MacOS or Linux.
-The CLI app should accept a hostname or an IP address as its argument, then send ICMP "echo requests" in a loop to the target while receiving "echo reply" messages.
-It should report loss and RTT times for each sent message.
+- Written in the Go programming language
 
-Please choose from among these languages: C/C++/Go/Rust
+- CLI interface with positional argument for hostname/IP address
 
-## Useful Links
+- Sends ICMP "echo requests" in an infinite loop
 
-- [A Tour of Go](https://tour.golang.org/welcome/1)
-- [The Rust Programming Language](https://doc.rust-lang.org/book/index.html)
+- Reports loss and RTT times for each message
 
-## Requirements
+- Handles both IPv4 and IPv6 (with flag)
 
-### 1. Use one of the specified languages
+- Supports setting TTL with time exceeded messages (flag)
 
-Please choose from among C/C++/Go/Rust. If you aren't familiar with these languages, you're not alone! Many engineers join Cloudflare without
-specific langauge experience. Please consult [A Tour of Go](https://tour.golang.org/welcome/1) or [The Rust Programming Language](https://doc.rust-lang.org/book/index.html).
+- Supports finite number of pings (with flag)
 
-### 2. Build a tool with a CLI interface
+- Supports calculating jitter
 
-The tool should accept as a positional terminal argument a hostname or IP address.
+- Supports displaying summary of statistics upon termination
 
-### 3. Send ICMP "echo requests" in an infinite loop
+## Usage:
+#### To run the application:
 
-As long as the program is running it should continue to emit requests with a periodic delay.
+Navigate to the correct folder:
 
-### 4. Report loss and RTT times for each message
+    cd goPing
+Build the project:
 
-Packet loss and latency should be reported as each message received.
+    go build
+Run the executable as superuser:
 
-## Submitting your project
+    sudo ./goPing [-c int] [-ipv int] [-ttl int] address
+where: 
+`-c` is finite number of times to ping, -1 being infinite (default -1)
+`-ipv` is 4 or 6, corresponding to which IP version to use (default 4)
+`-ttl` is time-to-live before package expires (default 64)
 
-When submitting your project, you should prepare your code for upload to Greenhouse. The preferred method for doing this is to create a "ZIP archive" of your project folder: for more instructions on how to do this on Windows and Mac, see [this guide](https://www.sweetwater.com/sweetcare/articles/how-to-zip-and-unzip-files/).
+#### Example:
+`sudo ./goPing -c 3 -ttl 64 -ipv 6 www.cloudflare.com`
 
-Please provide the source code only, a compiled binary is not necessary.
+Output:
 
-## Using Libraries
+    Using IPv6...
+    Seq: 1          Pinging: 2606:4700::6811:d109           RTT: 340µs              Loss: 0.00%
+    Seq: 2          Pinging: 2606:4700::6811:d209           RTT: 21.09ms            Loss: 0.00%
+    Seq: 3          Pinging: 2606:4700::6811:d209           RTT: 228.42ms           Loss: 0.00%
+    
+    ----------------------------| Statistics |----------------------------
+    Packets sent: 3         Packets lost: 0         Loss: 0.00%             Jitter: 114.04ms
 
-You may use libraries (both built-in and installed via package managers) and system calls as necessary. Please don't use the ping built-in application or a full library implementation of ping.
+## About Me:
 
-## Extra Credit
+A kind thank you to anyone taking the time to look through my repository. I've lost two internship offers due to COVID-19. It is great to see Cloudflare taking a responsible approach.
 
-1. Add support for both IPv4 and IPv6
-2. Allow to set TTL as an argument and report the corresponding "time exceeded” ICMP messages
-3. Any additional features listed in the ping man page or which you think would be valuable
+This is the first time I've ever touched Go. I chose to write in Go because I understand that this project is supposed to be a fun learning experience. What better way to learn and express oneself than learning a language from scratch and doing a project using it?
+
+Learning about ICMP, and the Internet Protocol suite in general has been a blast. So much so that I just signed up to take a computer networks course as a technical elective for next semester.
