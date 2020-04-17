@@ -1,15 +1,14 @@
-/*
-Program: goPing
-
-Description: A simple CLI ping application to send echo requests and receive
-echo replies in an infinite loop.
-
-Attributes:
-1) Written in the Go programming language
-2) CLI interface with positional argument for hostname/IP address
-3) Sends ICMP "echo requests" in an infinite loop
-4) Reports loss and RTT times for each message
-*/
+// Program: goPing
+//
+// Description: A simple CLI ping application to send echo requests and receive
+// echo replies in an infinite loop.
+//
+// Attributes:
+// 1) Written in the Go programming language
+// 2) CLI interface with positional argument for hostname/IP address
+// 3) Sends ICMP "echo requests" in an infinite loop
+// 4) Reports loss and RTT times for each message
+// 5) Handles both IPv4 and IPv6 (with flag)
 
 package main
 
@@ -23,17 +22,26 @@ import (
 
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv4"
+	"golang.org/x/net/ipv6"
 )
 
 func main() {
 	// Remove timestamp from log
 	log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
 
-	//address := flag.String(
-	//	"a",
-	//	"cloudflare.com",
-	//	"The hostname or IP address to ping")
+	ipVersion := flag.Int(
+		"ipv",
+		4,
+		"4 or 6, corresponding to which IP version to use")
 	flag.Parse()
+
+	wantIPv6 = *ipVersion == 6
+
+	if wantIPv6 {
+		log.Printf("Using IPv6\n")
+	} else {
+		log.Printf("Using IPv4\n")
+	}
 
 	var address string
 
@@ -69,10 +77,18 @@ func main() {
 }
 
 const (
-	listenNetwork  string = "ip4:icmp"
-	listenAddress  string = "0.0.0.0"
-	resolveNetwork string = "ip4"
-	protocolICMP   int    = 1
+	listenNetwork4  string = "ip4:icmp"
+	listenNetwork6  string = "ip6:ipv6-icmp"
+	listenAddress4  string = "0.0.0.0"
+	listenAddress6  string = "::"
+	resolveNetwork4 string = "ip4"
+	resolveNetwork6 string = "ip6"
+	protocolICMP4   int    = 1
+	protocolICMP6   int    = 58
+)
+
+var (
+	wantIPv6 bool
 )
 
 type statistic struct {
@@ -85,7 +101,31 @@ type statistic struct {
 }
 
 func (stats *statistic) ping(address string) (*net.IPAddr, error) {
-	stats.rtt = 0
+	stats.rtt = 0 // Reset rtt in case error causes return before update
+
+	var (
+		listenNetwork  string
+		listenAddress  string
+		resolveNetwork string
+		messageType    icmp.Type
+		//replyType      icmp.Type
+		protocolICMP int
+	)
+
+	if wantIPv6 {
+		listenNetwork = listenNetwork6
+		listenAddress = listenAddress6
+		resolveNetwork = resolveNetwork6
+		messageType = ipv6.ICMPTypeEchoRequest
+		protocolICMP = protocolICMP6
+
+	} else {
+		listenNetwork = listenNetwork4
+		listenAddress = listenAddress4
+		resolveNetwork = resolveNetwork4
+		messageType = ipv4.ICMPTypeEcho
+		protocolICMP = protocolICMP4
+	}
 
 	listenPacket, err := icmp.ListenPacket(listenNetwork, listenAddress)
 	if err != nil {
@@ -99,7 +139,7 @@ func (stats *statistic) ping(address string) (*net.IPAddr, error) {
 	}
 
 	request := icmp.Message{
-		Type: ipv4.ICMPTypeEcho,
+		Type: messageType,
 		Code: 0,
 		Body: &icmp.Echo{
 			ID:   os.Getpid() & 0xffff,
@@ -117,7 +157,10 @@ func (stats *statistic) ping(address string) (*net.IPAddr, error) {
 		return ipAddress, err
 	}
 	replyEncoded := make([]byte, 1000)
-	listenPacket.SetReadDeadline(time.Now().Add(3 * time.Second))
+	err = listenPacket.SetReadDeadline(time.Now().Add(3 * time.Second))
+	if err != nil {
+		return ipAddress, err
+	}
 
 	replyRead, _, err := listenPacket.ReadFrom(replyEncoded)
 	stats.rtt = time.Since(timeSent).Round(10 * time.Microsecond)
@@ -127,11 +170,11 @@ func (stats *statistic) ping(address string) (*net.IPAddr, error) {
 		return ipAddress, err
 	}
 	switch reply.Type {
-	case ipv4.ICMPTypeEchoReply:
+	case ipv4.ICMPTypeEchoReply, ipv6.ICMPTypeEchoReply:
 		stats.received++
 		return ipAddress, nil
 	default:
-		return ipAddress, fmt.Errorf("reply type not echo reply")
+		return ipAddress, fmt.Errorf("reply type is %s", reply.Type)
 
 	}
 }
