@@ -9,8 +9,10 @@
 // 3) Sends ICMP "echo requests" in an infinite loop
 // 4) Reports loss and RTT times for each message
 // 5) Handles both IPv4 and IPv6 (with flag)
-// 6) X
+// 6) Supports setting TTL with time exceeded messages (flag)
 // 7) Supports finite number of pings (with flag)
+// 8) Supports calculating jitter
+// 9) Supports displaying summary or statistics upon termination
 
 package main
 
@@ -20,6 +22,8 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"golang.org/x/net/icmp"
@@ -30,6 +34,9 @@ import (
 func main() {
 	// Remove timestamp from log
 	log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
+
+	stats := new(statistic)
+	stats.closeHandler()
 
 	ipVersion := flag.Int(
 		"ipv",
@@ -73,7 +80,6 @@ func main() {
 		address = flag.Arg(0)
 	}
 
-	stats := new(statistic)
 	for i := 0; i != *pingCount; i++ {
 		logIPAddress, logErr := stats.ping(address)
 		if logErr != nil {
@@ -82,6 +88,7 @@ func main() {
 			log.Printf("ERROR: %s\n", logErr)
 		} else {
 			stats.count++
+			stats.rttAll = append(stats.rttAll, stats.rtt)
 		}
 		stats.loss = (float64(stats.lost) / float64(stats.count)) * 100.0
 		log.Printf(
@@ -92,6 +99,7 @@ func main() {
 			stats.loss)
 		time.Sleep(time.Second)
 	}
+	stats.showStatistics()
 }
 
 const (
@@ -111,12 +119,13 @@ var (
 )
 
 type statistic struct {
-	count    int
-	sent     int
-	received int
-	lost     int
-	rtt      time.Duration
-	loss     float64
+	count               int
+	lost                int
+	rtt                 time.Duration
+	loss                float64
+	rttAll              []time.Duration
+	totalDifferencesRTT time.Duration
+	jitter              time.Duration
 }
 
 func (stats *statistic) ping(address string) (*net.IPAddr, error) {
@@ -198,10 +207,35 @@ func (stats *statistic) ping(address string) (*net.IPAddr, error) {
 	case ipv6.ICMPTypeNeighborSolicitation, ipv6.ICMPTypeNeighborAdvertisement:
 		fallthrough
 	case ipv4.ICMPTypeEchoReply, ipv6.ICMPTypeEchoReply:
-		stats.received++
 		return ipAddress, nil
 	default:
 		return ipAddress, fmt.Errorf("Received %s instead of echo reply", reply.Type)
 
 	}
+}
+
+func (stats *statistic) closeHandler() {
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func(stats *statistic) {
+		<-c
+		fmt.Println(": Signal Interrupt received... ")
+		stats.showStatistics()
+		os.Exit(0)
+	}(stats)
+}
+
+func (stats *statistic) showStatistics() {
+	fmt.Println("\n--------------| Statistics |--------------")
+	if len(stats.rttAll) > 1 {
+		for val := range stats.rttAll[:len(stats.rttAll)-1] {
+			diff := stats.rttAll[val] - stats.rttAll[val+1]
+			if diff < 0 {
+				diff = -diff
+			}
+			stats.totalDifferencesRTT += diff
+		}
+		stats.jitter = time.Duration(int64(stats.totalDifferencesRTT) / int64(len(stats.rttAll)-1))
+	}
+	fmt.Printf("Packets sent: %d\t\tPackets lost: %d\t\tLoss: %.2f%%\t\tJitter: %s\n", stats.count, stats.lost, stats.loss, stats.jitter)
 }
