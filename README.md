@@ -1,4 +1,4 @@
-# goPing -- A Cloudflare Internship Application: Systems
+# goPing -- A Simple CLI Ping Application
 #### Author: Alvi Habib
 
 ## Features:
@@ -50,11 +50,3 @@ Output:
     
     ----------------------------| Statistics |----------------------------
     Packets sent: 3         Packets lost: 0         Loss: 0.00%             Jitter: 114.04ms
-
-## About Me:
-
-A kind thank you to anyone taking the time to look through my repository. I've lost two internship offers due to COVID-19. It is great to see Cloudflare taking a responsible approach.
-
-This is the first time I've ever touched Go. I chose to write in Go because I understand that this project is supposed to be a fun learning experience. What better way to learn and express oneself than learning a language from scratch and doing a project using it?
-
-Learning about ICMP, and the Internet Protocol suite in general has been a blast. So much so that I just signed up to take a computer networks course as a technical elective for next semester.
